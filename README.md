@@ -116,6 +116,19 @@ agent at specific capabilities.
 - A task is only checked off when the agent both finishes without engine error
   **and** explicitly reports `STATUS: done`.
 
+## Development
+
+```powershell
+pip install -e .[dev]
+pytest                  # unit tests: deterministic, no engine calls, $0
+pytest --cov            # with coverage
+pytest -m live          # end-to-end against the real engine (costs money, needs login)
+```
+
+The unit suite replaces the SDK's `query()` with a scripted fake
+(`tests/fakes.py`), so retry policy, the verifier gate, checkbox lifecycle,
+history, memory and watch mode are all exercised without spending a cent.
+
 ## Docs
 
 - [docs/specs.md](docs/specs.md) — product specification
