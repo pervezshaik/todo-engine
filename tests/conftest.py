@@ -17,6 +17,19 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return home
 
 
+@pytest.fixture(autouse=True)
+def plain_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make rich output plain and unwrapped so text assertions don't depend on the host.
+
+    CI runners and some shells set ``FORCE_COLOR``; rich then emits ANSI codes
+    and wraps at 80 columns, which breaks substring checks on captured stdout.
+    """
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("TERM", "dumb")
+    monkeypatch.setenv("COLUMNS", "200")
+
+
 @pytest.fixture
 def fake_sdk(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """Replace the SDK ``query`` in every module that calls it."""
