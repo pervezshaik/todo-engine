@@ -1,5 +1,7 @@
 # todo-engine — agentic to-do execution
 
+[![CI](https://github.com/pervezshaik/todo-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/pervezshaik/todo-engine/actions/workflows/ci.yml)
+
 Write tasks in a markdown checklist; an autonomous Claude agent does each one
 and checks it off. The todo file is the progress tracker.
 
@@ -128,6 +130,10 @@ pytest -m live          # end-to-end against the real engine (costs money, needs
 The unit suite replaces the SDK's `query()` with a scripted fake
 (`tests/fakes.py`), so retry policy, the verifier gate, checkbox lifecycle,
 history, memory and watch mode are all exercised without spending a cent.
+
+Quality gates (`ruff`, `mypy --strict`, `pytest` with coverage ≥ 85 %) run via
+`nox` locally and in GitHub Actions on Ubuntu, Windows and macOS × Python 3.10
+and 3.13 (`.github/workflows/ci.yml`). Live tests never run in CI.
 
 ## Docs
 
