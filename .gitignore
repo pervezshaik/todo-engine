@@ -1,0 +1,30 @@
+# --- engine runtime state (regenerated every run) ---
+runs/
+memory/
+.playwright-mcp/
+
+# --- local config that may reference machine-specific servers ---
+# track mcp_config.example.json instead
+mcp_config.json
+todo-engine.toml
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

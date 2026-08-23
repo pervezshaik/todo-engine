@@ -1,0 +1,18 @@
+{
+  "//": "Copy to mcp_config.json (git-ignored) and edit. Each entry becomes an MCP server available to every task agent; tools are callable as mcp__<server>__<tool>. String values support ${VAR} expansion from the environment so tokens never live in this file.",
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}" }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"]
+    },
+    "remote-example": {
+      "type": "http",
+      "url": "https://example.com/mcp"
+    }
+  }
+}
