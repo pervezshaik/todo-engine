@@ -22,18 +22,17 @@ _CHECKBOX_RE = re.compile(r"^(\s*[-*]\s+\[)([ xX~])(\]\s+)(.*)$")
 #   - [ ] email the report @use: gmail, xlsx @retries: 2 @verify: off
 _DIRECTIVE_KEYS = ("use", "retries", "verify")
 _KEYS_ALT = "|".join(_DIRECTIVE_KEYS)
-_DIRECTIVE_RE = re.compile(
-    rf"\s+@({_KEYS_ALT}):\s*(.*?)(?=\s+@(?:{_KEYS_ALT}):|$)")
+_DIRECTIVE_RE = re.compile(rf"\s+@({_KEYS_ALT}):\s*(.*?)(?=\s+@(?:{_KEYS_ALT}):|$)")
 
 
 @dataclass
 class Task:
-    line_no: int          # 0-based index into the file's lines
-    text: str             # task text with any @directive suffixes stripped
+    line_no: int  # 0-based index into the file's lines
+    text: str  # task text with any @directive suffixes stripped
     done: bool
-    hints: list[str] = field(default_factory=list)      # from @use:
+    hints: list[str] = field(default_factory=list)  # from @use:
     directives: dict[str, str] = field(default_factory=dict)
-    number: int = 0       # 1-based position among checklist items, for --task N
+    number: int = 0  # 1-based position among checklist items, for --task N
     in_progress: bool = False  # a leftover [~] counts as pending and reruns
 
 

@@ -34,8 +34,37 @@ If there is nothing transferable, reply with exactly: NOTHING
 
 _WORD_RE = re.compile(r"[a-zA-Z0-9_]{3,}")
 _STOPWORDS = frozenset(
-    "the and for with that this from into your has have was were are will "
-    "file files create write task using use used new all one two out".split())
+    [
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "your",
+        "has",
+        "have",
+        "was",
+        "were",
+        "are",
+        "will",
+        "file",
+        "files",
+        "create",
+        "write",
+        "task",
+        "using",
+        "use",
+        "used",
+        "new",
+        "all",
+        "one",
+        "two",
+        "out",
+    ]
+)
 
 
 def _memory_dir(project_root: Path) -> Path:
@@ -46,8 +75,9 @@ def _keywords(text: str) -> set[str]:
     return {w.lower() for w in _WORD_RE.findall(text)} - _STOPWORDS
 
 
-async def distill(task: Task, final_text: str, transcript_tail: str,
-                  project_root: Path) -> Path | None:
+async def distill(
+    task: Task, final_text: str, transcript_tail: str, project_root: Path
+) -> Path | None:
     """Distill a lesson memo from a verified-successful task. Returns the memo
     path, or None if the model judged there was nothing transferable."""
     options = ClaudeAgentOptions(
@@ -56,17 +86,18 @@ async def distill(task: Task, final_text: str, transcript_tail: str,
         allowed_tools=[],
         system_prompt=DISTILL_SYSTEM_PROMPT,
     )
-    prompt = (f"TASK: {task.text}\n\nAGENT FINAL REPORT:\n{final_text[:1500]}\n\n"
-              f"TOOL-CALL TRAIL (tail):\n{transcript_tail[:1000]}")
+    prompt = (
+        f"TASK: {task.text}\n\nAGENT FINAL REPORT:\n{final_text[:1500]}\n\n"
+        f"TOOL-CALL TRAIL (tail):\n{transcript_tail[:1000]}"
+    )
     memo_text = ""
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock) and block.text.strip():
                     memo_text = block.text.strip()
-        elif isinstance(message, ResultMessage):
-            if message.is_error:
-                return None
+        elif isinstance(message, ResultMessage) and message.is_error:
+            return None
 
     if not memo_text or memo_text.strip().upper() == "NOTHING":
         return None
@@ -86,8 +117,7 @@ async def distill(task: Task, final_text: str, transcript_tail: str,
     return memo_path
 
 
-def relevant_memos(task_text: str, project_root: Path, k: int = 3,
-                   max_chars: int = 2500) -> str:
+def relevant_memos(task_text: str, project_root: Path, k: int = 3, max_chars: int = 2500) -> str:
     """Return the top-k keyword-relevant memos, concatenated for the prompt."""
     lessons_dir = _memory_dir(project_root)
     if not lessons_dir.is_dir():

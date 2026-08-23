@@ -3,25 +3,35 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    HookMatcher,
     ResultMessage,
     TextBlock,
     ToolUseBlock,
     query,
 )
+from claude_agent_sdk.types import HookEvent
 
 from .parser import Task
 
 BUILTIN_TOOLS = [
-    "Bash", "PowerShell", "Read", "Write", "Edit", "Glob", "Grep",
-    "WebSearch", "WebFetch",
+    "Bash",
+    "PowerShell",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "WebSearch",
+    "WebFetch",
 ]
 
 SYSTEM_PROMPT = """You are a task-execution agent. You are given exactly ONE task
@@ -45,18 +55,28 @@ Rules:
 
 class TaskOutcome(str, Enum):
     DONE = "done"
-    FAILED = "failed"                        # real failure; Reflexion retry applies
-    TIMEOUT = "timeout"                      # hit max_turns
+    FAILED = "failed"  # real failure; Reflexion retry applies
+    TIMEOUT = "timeout"  # hit max_turns
     MISSING_CAPABILITY = "missing_capability"  # agent lacked a capability; no retry
-    DECLINED = "declined"                    # user/permission denied; no retry
-    ENGINE_ERROR = "engine_error"            # SDK/infrastructure error
+    DECLINED = "declined"  # user/permission denied; no retry
+    ENGINE_ERROR = "engine_error"  # SDK/infrastructure error
 
 
 # substrings that mark an engine error as transient → backoff + retry
 _TRANSIENT_MARKERS = (
-    "rate limit", "rate_limit", "429", "overloaded", "529", "timeout",
-    "timed out", "connection", "econnreset", "network", "5xx",
-    "internal server error", "service unavailable",
+    "rate limit",
+    "rate_limit",
+    "429",
+    "overloaded",
+    "529",
+    "timeout",
+    "timed out",
+    "connection",
+    "econnreset",
+    "network",
+    "5xx",
+    "internal server error",
+    "service unavailable",
 )
 
 
@@ -75,10 +95,10 @@ class TaskContext:
     capability_manifest: str = ""
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     extra_allowed_tools: list[str] = field(default_factory=list)
-    hooks: dict[str, list[Any]] | None = None
+    hooks: dict[HookEvent, list[HookMatcher]] | None = None
     completed_summaries: list[str] = field(default_factory=list)
-    lessons: str = ""             # cross-run memory memos (set by runner)
-    failure_memo: str = ""        # set on Reflexion retry attempts
+    lessons: str = ""  # cross-run memory memos (set by runner)
+    failure_memo: str = ""  # set on Reflexion retry attempts
     on_event: Callable[[str], None] = lambda _line: None  # live console callback
 
 
@@ -86,36 +106,44 @@ class TaskContext:
 class TaskResult:
     success: bool
     outcome: TaskOutcome
-    status_line: str          # the STATUS: line (or synthesized failure reason)
+    status_line: str  # the STATUS: line (or synthesized failure reason)
     final_text: str
     cost_usd: float | None
     duration_s: float
-    transcript: list[str]     # markdown lines for the run log
+    transcript: list[str]  # markdown lines for the run log
     error_detail: str = ""
 
 
 def build_prompt(task: Task, ctx: TaskContext) -> str:
     parts = [f"Working directory: {ctx.workdir}", "", f"TASK: {task.text}"]
     if task.hints:
-        parts += ["", "The user specifically suggested using these registered "
-                  f"capabilities for this task: {', '.join(task.hints)}. "
-                  "Favor them if applicable."]
+        parts += [
+            "",
+            "The user specifically suggested using these registered "
+            f"capabilities for this task: {', '.join(task.hints)}. "
+            "Favor them if applicable.",
+        ]
     if ctx.capability_manifest:
-        parts += ["", "Available capabilities (beyond your built-in tools):",
-                  ctx.capability_manifest]
+        parts += [
+            "",
+            "Available capabilities (beyond your built-in tools):",
+            ctx.capability_manifest,
+        ]
     else:
         parts += ["", "Available capabilities: none registered beyond your built-in tools."]
     if ctx.lessons:
-        parts += ["", "Lessons from previous related tasks (use if helpful):",
-                  ctx.lessons]
+        parts += ["", "Lessons from previous related tasks (use if helpful):", ctx.lessons]
     if ctx.completed_summaries:
         parts += ["", "Tasks already completed earlier in this run:"]
         parts += [f"- {s}" for s in ctx.completed_summaries]
     if ctx.failure_memo:
-        parts += ["", "IMPORTANT — a previous attempt at this task failed:",
-                  ctx.failure_memo,
-                  "Analyze what went wrong and take a DIFFERENT approach this time. "
-                  "Do not repeat the failed approach."]
+        parts += [
+            "",
+            "IMPORTANT — a previous attempt at this task failed:",
+            ctx.failure_memo,
+            "Analyze what went wrong and take a DIFFERENT approach this time. "
+            "Do not repeat the failed approach.",
+        ]
     return "\n".join(parts)
 
 
@@ -181,10 +209,13 @@ async def run_task(task: Task, ctx: TaskContext) -> TaskResult:
         status_line = f"STATUS: failed — engine error: {error_detail or 'unknown'}"
     success = outcome is TaskOutcome.DONE
 
-    transcript += ["", "---",
-                   f"Result: {'success' if success else 'FAILED'} | outcome: {outcome.value} | {status_line}",
-                   f"Cost: ${cost:.4f}" if cost is not None else "Cost: n/a",
-                   f"Duration: {duration:.1f}s"]
+    transcript += [
+        "",
+        "---",
+        f"Result: {'success' if success else 'FAILED'} | outcome: {outcome.value} | {status_line}",
+        f"Cost: ${cost:.4f}" if cost is not None else "Cost: n/a",
+        f"Duration: {duration:.1f}s",
+    ]
     return TaskResult(
         success=success,
         outcome=outcome,
@@ -197,8 +228,9 @@ async def run_task(task: Task, ctx: TaskContext) -> TaskResult:
     )
 
 
-def _classify(is_error: bool, result_subtype: str,
-              status_ok: bool, status_line: str) -> TaskOutcome:
+def _classify(
+    is_error: bool, result_subtype: str, status_ok: bool, status_line: str
+) -> TaskOutcome:
     if is_error:
         return TaskOutcome.ENGINE_ERROR
     if "max_turn" in result_subtype:

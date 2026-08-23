@@ -32,10 +32,10 @@ class Capabilities:
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     allowed_tools: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    skills: list[tuple[str, str, Path]] = field(default_factory=list)   # name, description, path
-    tools: list[tuple[str, str]] = field(default_factory=list)          # name, description
-    servers: list[tuple[str, str]] = field(default_factory=list)        # name, origin
-    inherited: list[str] = field(default_factory=list)                  # Claude Code connectors
+    skills: list[tuple[str, str, Path]] = field(default_factory=list)  # name, description, path
+    tools: list[tuple[str, str]] = field(default_factory=list)  # name, description
+    servers: list[tuple[str, str]] = field(default_factory=list)  # name, origin
+    inherited: list[str] = field(default_factory=list)  # Claude Code connectors
 
 
 def _parse_frontmatter(text: str) -> dict[str, str]:
@@ -63,7 +63,8 @@ def _scan_skills(root: Path, caps: Capabilities) -> None:
         description = meta.get("description")
         if not name or not description:
             caps.warnings.append(
-                f"skill {skill_md}: missing 'name' or 'description' frontmatter — skipped")
+                f"skill {skill_md}: missing 'name' or 'description' frontmatter — skipped"
+            )
             continue
         caps.skills.append((name, description, skill_md))
 
@@ -72,7 +73,7 @@ def _scan_tools(root: Path, caps: Capabilities) -> None:
     tools_dir = root / "tools"
     if not tools_dir.is_dir():
         return
-    sdk_tools: list[SdkMcpTool] = []
+    sdk_tools: list[SdkMcpTool[Any]] = []
     for py in sorted(tools_dir.glob("*.py")):
         if py.name.startswith("_"):
             continue
@@ -88,8 +89,7 @@ def _scan_tools(root: Path, caps: Capabilities) -> None:
             caps.warnings.append(f"tool module {py}: no @tool-decorated functions found")
         sdk_tools.extend(found)
     if sdk_tools:
-        caps.mcp_servers[LOCAL_SERVER] = create_sdk_mcp_server(
-            name=LOCAL_SERVER, tools=sdk_tools)
+        caps.mcp_servers[LOCAL_SERVER] = create_sdk_mcp_server(name=LOCAL_SERVER, tools=sdk_tools)
         for t in sdk_tools:
             caps.tools.append((t.name, t.description))
             caps.allowed_tools.append(f"mcp__{LOCAL_SERVER}__{t.name}")
@@ -105,12 +105,14 @@ def _expand_env(value: Any, caps: Capabilities, origin: str) -> Any:
     instead of pasting a token.
     """
     if isinstance(value, str):
-        def replace(m: re.Match) -> str:
+
+        def replace(m: re.Match[str]) -> str:
             var = m.group(1)
             if var in os.environ:
                 return os.environ[var]
             caps.warnings.append(f"{origin}: environment variable {var} is not set")
-            return m.group(0)
+            return str(m.group(0))
+
         return _ENV_VAR_RE.sub(replace, value)
     if isinstance(value, dict):
         return {k: _expand_env(v, caps, origin) for k, v in value.items()}
@@ -129,7 +131,8 @@ def _scan_mcp_config(root: Path, caps: Capabilities) -> None:
         assert isinstance(servers, dict)
     except Exception as exc:  # noqa: BLE001
         caps.warnings.append(
-            f"{config_path}: malformed (expected {{'mcpServers': {{...}}}}) — {exc}")
+            f"{config_path}: malformed (expected {{'mcpServers': {{...}}}}) — {exc}"
+        )
         return
     for name, server_config in servers.items():
         if name.startswith("//"):

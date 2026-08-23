@@ -27,7 +27,9 @@ async def test_confirm_deny_returns_reason(tmp_path: Path, monkeypatch: pytest.M
     decision = out["hookSpecificOutput"]
     assert decision["permissionDecision"] == "deny"
     assert "declined" in decision["permissionDecisionReason"]
-    assert "$ format c:" in (tmp_path / "cmd.log").read_text(encoding="utf-8")  # logged even when denied
+    assert "$ format c:" in (tmp_path / "cmd.log").read_text(
+        encoding="utf-8"
+    )  # logged even when denied
 
 
 async def test_confirm_allow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

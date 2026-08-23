@@ -82,13 +82,17 @@ async def verify(task: Task, executor_claim: str, workdir: Path) -> Verdict:
     if is_error:
         # verification infrastructure failed — don't block the task on it,
         # but say so honestly
-        return Verdict(passed=True, reason="verifier unavailable (engine error); accepted unverified",
-                       cost_usd=cost)
+        return Verdict(
+            passed=True,
+            reason="verifier unavailable (engine error); accepted unverified",
+            cost_usd=cost,
+        )
 
     for line in reversed(final_text.strip().splitlines()):
         line = line.strip()
         if line.upper().startswith("VERDICT:"):
             body = line.split(":", 1)[1].strip()
             return Verdict(passed=body.lower().startswith("pass"), reason=line, cost_usd=cost)
-    return Verdict(passed=False, reason="VERDICT: fail — verifier gave no verdict line",
-                   cost_usd=cost)
+    return Verdict(
+        passed=False, reason="VERDICT: fail — verifier gave no verdict line", cost_usd=cost
+    )

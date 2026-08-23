@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import sys
 from pathlib import Path
 
@@ -16,35 +17,54 @@ def main() -> None:
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
-            try:
+            # non-reconfigurable stream (piped, etc.) — keep whatever encoding it has
+            with contextlib.suppress(Exception):
                 reconfigure(encoding="utf-8", errors="replace")
-            except Exception:  # noqa: BLE001 - non-reconfigurable stream (piped, etc.)
-                pass
     parser = argparse.ArgumentParser(
         prog="todo-engine",
         description="Run each unchecked task in a markdown todo file with an "
-                    "autonomous Claude agent. Uses your Claude Code login — "
-                    "no API key needed.",
+        "autonomous Claude agent. Uses your Claude Code login — "
+        "no API key needed.",
     )
     parser.add_argument("todo_file", type=Path, help="markdown checklist file (e.g. todo.md)")
-    parser.add_argument("--workdir", type=Path, default=Path.cwd(),
-                        help="directory agents operate in (default: current dir)")
-    parser.add_argument("--task", type=int, default=None, metavar="N",
-                        help="run only the Nth checklist item")
-    parser.add_argument("--watch", action="store_true",
-                        help="keep running; process new '- [ ]' lines on file save")
-    parser.add_argument("--confirm", action="store_true",
-                        help="ask y/n before every shell command an agent runs")
-    parser.add_argument("--yolo", action="store_true",
-                        help="fully autonomous: no permission gates at all")
-    parser.add_argument("--stop-on-failure", action="store_true",
-                        help="halt the run at the first failed task")
-    parser.add_argument("--max-turns", type=int, default=50, metavar="N",
-                        help="agent turn cap per task (default 50)")
-    parser.add_argument("--no-verify", action="store_true",
-                        help="skip the independent verification pass before checking a box")
-    parser.add_argument("--report", action="store_true",
-                        help="print the run-history report for this todo file's project and exit")
+    parser.add_argument(
+        "--workdir",
+        type=Path,
+        default=Path.cwd(),
+        help="directory agents operate in (default: current dir)",
+    )
+    parser.add_argument(
+        "--task", type=int, default=None, metavar="N", help="run only the Nth checklist item"
+    )
+    parser.add_argument(
+        "--watch", action="store_true", help="keep running; process new '- [ ]' lines on file save"
+    )
+    parser.add_argument(
+        "--confirm", action="store_true", help="ask y/n before every shell command an agent runs"
+    )
+    parser.add_argument(
+        "--yolo", action="store_true", help="fully autonomous: no permission gates at all"
+    )
+    parser.add_argument(
+        "--stop-on-failure", action="store_true", help="halt the run at the first failed task"
+    )
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=50,
+        metavar="N",
+        help="agent turn cap per task (default 50)",
+    )
+    parser.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="skip the independent verification pass before checking a box",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="print the run-history report for this todo file's project and exit",
+    )
     args = parser.parse_args()
 
     todo_file = args.todo_file.resolve()
@@ -53,6 +73,7 @@ def main() -> None:
 
     if args.report:
         from .history import print_report
+
         print_report(todo_file.parent)
         sys.exit(0)
 

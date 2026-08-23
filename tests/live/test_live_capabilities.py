@@ -26,15 +26,25 @@ async def test_agent_uses_registered_custom_tool(tmp_path: Path) -> None:
     assert "local" in caps.mcp_servers
 
     expected = "TOKEN-" + hashlib.sha256(b"hello-engine").hexdigest()[:12]
-    task = Task(line_no=0, number=1, done=False, hints=["example"],
-                text="Get the official TOKEN for the text 'hello-engine' and write it, "
-                     "and nothing else, into token.txt")
-    ctx = TaskContext(workdir=tmp_path, capability_manifest=caps.manifest,
-                      mcp_servers=caps.mcp_servers, extra_allowed_tools=caps.allowed_tools,
-                      on_event=lambda s: print(f"  | {s[:120]}"))
+    task = Task(
+        line_no=0,
+        number=1,
+        done=False,
+        hints=["example"],
+        text="Get the official TOKEN for the text 'hello-engine' and write it, "
+        "and nothing else, into token.txt",
+    )
+    ctx = TaskContext(
+        workdir=tmp_path,
+        capability_manifest=caps.manifest,
+        mcp_servers=caps.mcp_servers,
+        extra_allowed_tools=caps.allowed_tools,
+        on_event=lambda s: print(f"  | {s[:120]}"),
+    )
     result = await run_task(task, ctx)
     print(f"status: {result.status_line}")
     assert result.success, result.status_line
-    assert (tmp_path / "token.txt").read_text(encoding="utf-8").strip() == expected, \
+    assert (tmp_path / "token.txt").read_text(encoding="utf-8").strip() == expected, (
         "token mismatch — tool was not actually used"
+    )
     assert any("mcp__local__example" in line for line in result.transcript)

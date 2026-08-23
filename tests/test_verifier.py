@@ -40,15 +40,18 @@ async def test_engine_error_currently_fails_open(tmp_path: Path, fake_sdk: Simpl
     assert "accepted unverified" in v.reason
 
 
-async def test_verifier_is_read_only_cheap_and_prompted_with_task(tmp_path: Path,
-                                                                    fake_sdk: SimpleNamespace) -> None:
+async def test_verifier_is_read_only_cheap_and_prompted_with_task(
+    tmp_path: Path, fake_sdk: SimpleNamespace
+) -> None:
     fake_sdk.verifier.push(*verdict_pass())
     claim = "x" * 5000
     await verify(TASK, claim, tmp_path)
     opts = fake_sdk.verifier.options[0]
     assert opts.model == VERIFIER_MODEL == "haiku"
     assert opts.allowed_tools == ["Read", "Glob", "Grep"]
-    assert {"Write", "Edit", "Bash", "PowerShell", "WebSearch", "WebFetch"} <= set(opts.disallowed_tools)
+    assert {"Write", "Edit", "Bash", "PowerShell", "WebSearch", "WebFetch"} <= set(
+        opts.disallowed_tools
+    )
     assert opts.permission_mode == "default"
     assert opts.max_turns == 15
     assert opts.cwd == str(tmp_path)

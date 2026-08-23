@@ -7,7 +7,8 @@ generator, recording the prompt and options it was called with.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
 
@@ -26,11 +27,21 @@ def assistant(*blocks: Any) -> AssistantMessage:
     return AssistantMessage(content=list(blocks), model="fake-model")
 
 
-def result(is_error: bool = False, subtype: str = "success",
-           cost: float | None = 0.01, result_text: str | None = None) -> ResultMessage:
+def result(
+    is_error: bool = False,
+    subtype: str = "success",
+    cost: float | None = 0.01,
+    result_text: str | None = None,
+) -> ResultMessage:
     return ResultMessage(
-        subtype=subtype, duration_ms=1, duration_api_ms=1, is_error=is_error,
-        num_turns=1, session_id="fake-session", total_cost_usd=cost, result=result_text,
+        subtype=subtype,
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=is_error,
+        num_turns=1,
+        session_id="fake-session",
+        total_cost_usd=cost,
+        result=result_text,
     )
 
 
@@ -82,11 +93,11 @@ class FakeQuery:
         self.scripts: list[Any] = []
         self.calls: list[tuple[str, Any]] = []
 
-    def push(self, *messages: Any) -> "FakeQuery":
+    def push(self, *messages: Any) -> FakeQuery:
         self.scripts.append(list(messages))
         return self
 
-    def push_fn(self, fn: Callable[[str, Any], list[Any]]) -> "FakeQuery":
+    def push_fn(self, fn: Callable[[str, Any], list[Any]]) -> FakeQuery:
         self.scripts.append(fn)
         return self
 
@@ -102,7 +113,8 @@ class FakeQuery:
         self.calls.append((prompt, options))
         if not self.scripts:
             raise AssertionError(
-                f"unexpected {self.name} query call #{len(self.calls)}; prompt: {prompt[:200]!r}")
+                f"unexpected {self.name} query call #{len(self.calls)}; prompt: {prompt[:200]!r}"
+            )
         return self._gen(self.scripts.pop(0), prompt, options)
 
     async def _gen(self, script: Any, prompt: str, options: Any) -> Any:

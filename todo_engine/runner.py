@@ -40,8 +40,7 @@ class Runner:
     def __init__(self, config: RunConfig) -> None:
         self.config = config
         self.console = Console()
-        self.run_dir = (config.project_root / "runs"
-                        / datetime.now().strftime("%Y%m%d-%H%M%S"))
+        self.run_dir = config.project_root / "runs" / datetime.now().strftime("%Y%m%d-%H%M%S")
         self.completed_summaries: list[str] = []
         self.results: list[tuple[Task, TaskResult]] = []
         self.capabilities: Capabilities = self._load_capabilities()
@@ -51,9 +50,11 @@ class Runner:
         for warning in caps.warnings:
             self.console.print(f"[yellow]registry warning:[/yellow] {warning}")
         if caps.manifest:
-            names = ([n for n, _, _ in caps.skills]
-                     + [f"mcp__local__{n}" for n, _ in caps.tools]
-                     + [n for n, _ in caps.servers])
+            names = (
+                [n for n, _, _ in caps.skills]
+                + [f"mcp__local__{n}" for n, _ in caps.tools]
+                + [n for n, _ in caps.servers]
+            )
             self.console.print(f"[dim]capabilities registered: {', '.join(names)}[/dim]")
         return caps
 
@@ -65,7 +66,8 @@ class Runner:
             pending = [t for t in pending if t.number == self.config.only_task]
             if not pending:
                 self.console.print(
-                    f"[red]task {self.config.only_task} not found or already done[/red]")
+                    f"[red]task {self.config.only_task} not found or already done[/red]"
+                )
                 return False
         if not pending:
             return False
@@ -84,12 +86,16 @@ class Runner:
         self.console.print("[bold]Picked up this pass:[/bold]")
         for t in tasks:
             if t.number in pending_numbers:
-                note = " [yellow](interrupted earlier — rerunning)[/yellow]" if t.in_progress else ""
+                note = (
+                    " [yellow](interrupted earlier — rerunning)[/yellow]" if t.in_progress else ""
+                )
                 self.console.print(f"  [cyan]QUEUED[/cyan]  {t.number}. {t.text}{note}")
             elif t.done:
                 self.console.print(f"  [dim]DONE    {t.number}. {t.text} (skipped)[/dim]")
             else:
-                self.console.print(f"  [dim]HELD    {t.number}. {t.text} (not selected by --task)[/dim]")
+                self.console.print(
+                    f"  [dim]HELD    {t.number}. {t.text} (not selected by --task)[/dim]"
+                )
 
     async def _run_one(self, task: Task) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -107,8 +113,9 @@ class Runner:
             max_reflexion = int(task.directives.get("retries", "1"))
         except ValueError:
             max_reflexion = 1
-        verify_enabled = (not self.config.no_verify
-                          and task.directives.get("verify", "on").lower() != "off")
+        verify_enabled = (
+            not self.config.no_verify and task.directives.get("verify", "on").lower() != "off"
+        )
 
         attempt = 0
         transient_used = 0
@@ -139,9 +146,14 @@ class Runner:
                     success=False,
                     outcome=TaskOutcome.ENGINE_ERROR,
                     status_line=f"STATUS: failed — {type(exc).__name__}: {exc}",
-                    final_text="", cost_usd=None, duration_s=0.0,
-                    transcript=[f"# Task {task.number}: {task.text}", "",
-                                f"Engine exception: {type(exc).__name__}: {exc}"],
+                    final_text="",
+                    cost_usd=None,
+                    duration_s=0.0,
+                    transcript=[
+                        f"# Task {task.number}: {task.text}",
+                        "",
+                        f"Engine exception: {type(exc).__name__}: {exc}",
+                    ],
                     error_detail=str(exc),
                 )
 
@@ -159,41 +171,52 @@ class Runner:
                     result.outcome = TaskOutcome.FAILED
                     result.status_line = f"STATUS: failed — verification: {verdict.reason}"
 
-            record_attempt(self.config.project_root, {
-                "task_number": task.number,
-                "task_text": task.text,
-                "attempt": attempt,
-                "outcome": result.outcome.value,
-                "success": result.success,
-                "duration_s": round(result.duration_s, 1),
-                "cost_usd": result.cost_usd,
-                "verifier": verdict_reason,
-                "status_line": result.status_line[:300],
-                "run_dir": str(self.run_dir),
-            })
+            record_attempt(
+                self.config.project_root,
+                {
+                    "task_number": task.number,
+                    "task_text": task.text,
+                    "attempt": attempt,
+                    "outcome": result.outcome.value,
+                    "success": result.success,
+                    "duration_s": round(result.duration_s, 1),
+                    "cost_usd": result.cost_usd,
+                    "verifier": verdict_reason,
+                    "status_line": result.status_line[:300],
+                    "run_dir": str(self.run_dir),
+                },
+            )
 
             if result.success:
                 break
 
             # retry policy by outcome
-            if (result.outcome is TaskOutcome.ENGINE_ERROR
-                    and is_transient(result.error_detail)
-                    and transient_used < TRANSIENT_RETRIES):
+            if (
+                result.outcome is TaskOutcome.ENGINE_ERROR
+                and is_transient(result.error_detail)
+                and transient_used < TRANSIENT_RETRIES
+            ):
                 delay = TRANSIENT_DELAYS_S[transient_used]
                 transient_used += 1
                 self.console.print(
                     f"[yellow]transient engine error — retrying in {delay}s "
-                    f"({transient_used}/{TRANSIENT_RETRIES})[/yellow]")
+                    f"({transient_used}/{TRANSIENT_RETRIES})[/yellow]"
+                )
                 await asyncio.sleep(delay)
                 continue
-            if (result.outcome in (TaskOutcome.FAILED, TaskOutcome.TIMEOUT)
-                    and reflexion_used < max_reflexion):
+            if (
+                result.outcome in (TaskOutcome.FAILED, TaskOutcome.TIMEOUT)
+                and reflexion_used < max_reflexion
+            ):
                 reflexion_used += 1
-                failure_memo = (f"Attempt {attempt} ended with: {result.status_line}\n"
-                                f"Final message excerpt: {result.final_text[-600:]}")
+                failure_memo = (
+                    f"Attempt {attempt} ended with: {result.status_line}\n"
+                    f"Final message excerpt: {result.final_text[-600:]}"
+                )
                 self.console.print(
                     f"[yellow]retrying with failure analysis "
-                    f"(retry {reflexion_used}/{max_reflexion})[/yellow]")
+                    f"(retry {reflexion_used}/{max_reflexion})[/yellow]"
+                )
                 continue
             break  # missing_capability / declined / retries exhausted
 
@@ -205,19 +228,20 @@ class Runner:
             self.completed_summaries.append(f"{task.text} — {result.status_line}")
             self.console.print(f"[green][OK][/green] {result.status_line}")
             # distill a reusable lesson for future runs
-            tool_trail = "\n".join(
-                line for line in result.transcript if line.startswith("> "))[-1200:]
+            tool_trail = "\n".join(line for line in result.transcript if line.startswith("> "))[
+                -1200:
+            ]
             try:
-                memo_path = await distill(task, result.final_text, tool_trail,
-                                          self.config.project_root)
+                memo_path = await distill(
+                    task, result.final_text, tool_trail, self.config.project_root
+                )
                 if memo_path:
                     self.console.print(f"[dim]lesson saved: {memo_path.name}[/dim]")
             except Exception as exc:  # noqa: BLE001 - memory must never fail the run
                 self.console.print(f"[dim]lesson distillation skipped: {exc}[/dim]")
         else:
             mark_pending(self.config.todo_file, task.line_no)  # revert the [~] marker
-            self.console.print(
-                f"[red][FAILED][/red] ({result.outcome.value}) {result.status_line}")
+            self.console.print(f"[red][FAILED][/red] ({result.outcome.value}) {result.status_line}")
         self.console.print(f"[dim]log: {log_path}[/dim]")
 
     def print_summary(self) -> None:
@@ -236,8 +260,7 @@ class Runner:
             table.add_row(
                 str(task.number),
                 task.text[:60],
-                "[green]done[/green]" if result.success
-                else f"[red]{result.outcome.value}[/red]",
+                "[green]done[/green]" if result.success else f"[red]{result.outcome.value}[/red]",
                 f"${result.cost_usd:.4f}" if result.cost_usd is not None else "-",
                 f"{result.duration_s:.0f}s",
             )
@@ -252,8 +275,10 @@ class Runner:
         return 0 if all(r.success for _, r in self.results) else 1
 
     async def _watch_loop(self) -> None:
-        self.console.print("\n[bold]watch mode[/bold] — save new '- [ ]' lines "
-                           f"to {self.config.todo_file.name} to run them (Ctrl-C to exit)")
+        self.console.print(
+            "\n[bold]watch mode[/bold] — save new '- [ ]' lines "
+            f"to {self.config.todo_file.name} to run them (Ctrl-C to exit)"
+        )
         last_mtime = self.config.todo_file.stat().st_mtime
         try:
             while True:

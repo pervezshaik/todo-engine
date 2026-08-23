@@ -77,7 +77,9 @@ def test_mark_done_changes_exactly_one_line(todo: Path) -> None:
     before_lines = SAMPLE.splitlines()
     after_lines = after.splitlines()
     assert len(before_lines) == len(after_lines)
-    assert [i for i, (a, b) in enumerate(zip(before_lines, after_lines)) if a != b] == [5]
+    assert [
+        i for i, (a, b) in enumerate(zip(before_lines, after_lines, strict=False)) if a != b
+    ] == [5]
 
 
 def test_mark_preserves_missing_trailing_newline(tmp_path: Path) -> None:

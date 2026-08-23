@@ -31,7 +31,7 @@ def record_attempt(project_root: Path, entry: dict[str, Any]) -> None:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     if path.stat().st_size > MAX_BYTES:
         lines = path.read_text(encoding="utf-8").splitlines()
-        path.write_text("\n".join(lines[len(lines) // 2:]) + "\n", encoding="utf-8")
+        path.write_text("\n".join(lines[len(lines) // 2 :]) + "\n", encoding="utf-8")
 
 
 def load_history(project_root: Path) -> list[dict[str, Any]]:

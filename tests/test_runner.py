@@ -41,8 +41,9 @@ def happy_path(sdk: SimpleNamespace) -> None:
 # --- success & selection ----------------------------------------------------
 
 
-async def test_success_checks_box_and_records_everything(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                         no_sleep: list, capsys: pytest.CaptureFixture) -> None:
+async def test_success_checks_box_and_records_everything(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
     runner, todo = make_runner(tmp_path, "# t\n\n- [ ] Write hello.txt\n")
     happy_path(fake_sdk)
 
@@ -68,8 +69,9 @@ async def test_success_checks_box_and_records_everything(tmp_path: Path, fake_sd
     assert "[OK] STATUS: done" in out and "Run summary" in out and "total cost" in out
 
 
-async def test_done_tasks_are_skipped(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                      capsys: pytest.CaptureFixture) -> None:
+async def test_done_tasks_are_skipped(
+    tmp_path: Path, fake_sdk: SimpleNamespace, capsys: pytest.CaptureFixture
+) -> None:
     runner, _ = make_runner(tmp_path, "- [x] already done\n")
     assert await runner.run_once() is False
     assert await runner.run() == 0
@@ -77,8 +79,9 @@ async def test_done_tasks_are_skipped(tmp_path: Path, fake_sdk: SimpleNamespace,
     assert "nothing to do" in capsys.readouterr().out
 
 
-async def test_only_task_selection(tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list,
-                                   capsys: pytest.CaptureFixture) -> None:
+async def test_only_task_selection(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] first\n- [ ] second\n", only_task=2)
     happy_path(fake_sdk)
     await runner.run()
@@ -91,8 +94,9 @@ async def test_only_task_selection(tmp_path: Path, fake_sdk: SimpleNamespace, no
     assert "not found or already done" in capsys.readouterr().out
 
 
-async def test_in_progress_marker_is_visible_while_running(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                           no_sleep: list) -> None:
+async def test_in_progress_marker_is_visible_while_running(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n")
     seen: dict[str, str] = {}
 
@@ -111,8 +115,9 @@ async def test_in_progress_marker_is_visible_while_running(tmp_path: Path, fake_
 # --- verifier gate ----------------------------------------------------------
 
 
-async def test_verifier_rejection_reverts_box(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                              no_sleep: list) -> None:
+async def test_verifier_rejection_reverts_box(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt @retries: 0\n")
     fake_sdk.agent.push(*agent_done())
     fake_sdk.verifier.push(*verdict_fail("hello.txt is missing"))
@@ -126,8 +131,9 @@ async def test_verifier_rejection_reverts_box(tmp_path: Path, fake_sdk: SimpleNa
     assert fake_sdk.memo.calls == []  # no lesson from a rejected task
 
 
-async def test_verify_off_directive_skips_verifier(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                   no_sleep: list) -> None:
+async def test_verify_off_directive_skips_verifier(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] quick note @verify: off\n")
     fake_sdk.agent.push(*agent_done())
     fake_sdk.memo.push(*memo_nothing())
@@ -137,8 +143,9 @@ async def test_verify_off_directive_skips_verifier(tmp_path: Path, fake_sdk: Sim
     assert load_history(tmp_path)[0]["verifier"] is None
 
 
-async def test_no_verify_flag_skips_verifier(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                             no_sleep: list) -> None:
+async def test_no_verify_flag_skips_verifier(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] quick note\n", no_verify=True)
     fake_sdk.agent.push(*agent_done())
     fake_sdk.memo.push(*memo_nothing())
@@ -150,8 +157,9 @@ async def test_no_verify_flag_skips_verifier(tmp_path: Path, fake_sdk: SimpleNam
 # --- retry policy -----------------------------------------------------------
 
 
-async def test_reflexion_retry_passes_failure_memo(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                   no_sleep: list) -> None:
+async def test_reflexion_retry_passes_failure_memo(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] find the config\n")
     fake_sdk.agent.push(*agent_failed("could not find config.yml"))
     happy_path(fake_sdk)
@@ -165,12 +173,15 @@ async def test_reflexion_retry_passes_failure_memo(tmp_path: Path, fake_sdk: Sim
     assert no_sleep == []  # no backoff for real failures
     rows = load_history(tmp_path)
     assert [(r["attempt"], r["outcome"], r["success"]) for r in rows] == [
-        (1, "failed", False), (2, "done", True)]
+        (1, "failed", False),
+        (2, "done", True),
+    ]
     assert "- [x] find the config" in todo.read_text(encoding="utf-8")
 
 
-async def test_retries_directive_controls_reflexion_count(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                          no_sleep: list) -> None:
+async def test_retries_directive_controls_reflexion_count(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] impossible @retries: 2\n")
     for _ in range(3):
         fake_sdk.agent.push(*agent_failed("nope"))
@@ -179,9 +190,9 @@ async def test_retries_directive_controls_reflexion_count(tmp_path: Path, fake_s
     assert todo.read_text(encoding="utf-8") == "- [ ] impossible @retries: 2\n"
 
 
-async def test_invalid_retries_directive_falls_back_to_default(tmp_path: Path,
-                                                               fake_sdk: SimpleNamespace,
-                                                               no_sleep: list) -> None:
+async def test_invalid_retries_directive_falls_back_to_default(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, _ = make_runner(tmp_path, "- [ ] impossible @retries: lots\n")
     fake_sdk.agent.push(*agent_failed("nope"))
     fake_sdk.agent.push(*agent_failed("nope"))
@@ -189,10 +200,9 @@ async def test_invalid_retries_directive_falls_back_to_default(tmp_path: Path,
     assert len(fake_sdk.agent.calls) == 2  # default of 1 retry
 
 
-async def test_transient_engine_error_backs_off_then_succeeds(tmp_path: Path,
-                                                              fake_sdk: SimpleNamespace,
-                                                              no_sleep: list,
-                                                              capsys: pytest.CaptureFixture) -> None:
+async def test_transient_engine_error_backs_off_then_succeeds(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n")
     fake_sdk.agent.push(*engine_error("API Error: 429 rate limit"))
     happy_path(fake_sdk)
@@ -205,8 +215,9 @@ async def test_transient_engine_error_backs_off_then_succeeds(tmp_path: Path,
     assert "- [x] Write hello.txt" in todo.read_text(encoding="utf-8")
 
 
-async def test_transient_errors_exhaust_after_two_retries(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                          no_sleep: list) -> None:
+async def test_transient_errors_exhaust_after_two_retries(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n")
     for _ in range(3):
         fake_sdk.agent.push(*engine_error("connection reset"))
@@ -217,13 +228,16 @@ async def test_transient_errors_exhaust_after_two_retries(tmp_path: Path, fake_s
     assert todo.read_text(encoding="utf-8") == "- [ ] Write hello.txt\n"
 
 
-@pytest.mark.parametrize("reason, outcome", [
-    ("missing capability: sms", TaskOutcome.MISSING_CAPABILITY),
-    ("user declined the command", TaskOutcome.DECLINED),
-])
-async def test_missing_capability_and_declined_never_retry(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                           no_sleep: list, reason: str,
-                                                           outcome: TaskOutcome) -> None:
+@pytest.mark.parametrize(
+    ("reason", "outcome"),
+    [
+        ("missing capability: sms", TaskOutcome.MISSING_CAPABILITY),
+        ("user declined the command", TaskOutcome.DECLINED),
+    ],
+)
+async def test_missing_capability_and_declined_never_retry(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, reason: str, outcome: TaskOutcome
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] send an sms\n")
     fake_sdk.agent.push(*agent_failed(reason))
     assert await runner.run() == 1
@@ -232,8 +246,9 @@ async def test_missing_capability_and_declined_never_retry(tmp_path: Path, fake_
     assert todo.read_text(encoding="utf-8") == "- [ ] send an sms\n"
 
 
-async def test_engine_exception_is_contained(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                             no_sleep: list) -> None:
+async def test_engine_exception_is_contained(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n- [ ] second\n")
     fake_sdk.agent.push(RuntimeError("boom"))
     happy_path(fake_sdk)
@@ -246,10 +261,12 @@ async def test_engine_exception_is_contained(tmp_path: Path, fake_sdk: SimpleNam
     assert todo.read_text(encoding="utf-8") == "- [ ] Write hello.txt\n- [x] second\n"
 
 
-async def test_stop_on_failure(tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list,
-                               capsys: pytest.CaptureFixture) -> None:
-    runner, todo = make_runner(tmp_path, "- [ ] first @retries: 0\n- [ ] second\n",
-                               stop_on_failure=True)
+async def test_stop_on_failure(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
+    runner, todo = make_runner(
+        tmp_path, "- [ ] first @retries: 0\n- [ ] second\n", stop_on_failure=True
+    )
     fake_sdk.agent.push(*agent_failed("nope"))
     assert await runner.run() == 1
     assert len(fake_sdk.agent.calls) == 1
@@ -260,11 +277,13 @@ async def test_stop_on_failure(tmp_path: Path, fake_sdk: SimpleNamespace, no_sle
 # --- memory -----------------------------------------------------------------
 
 
-async def test_lessons_flow_into_later_related_tasks(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                     no_sleep: list, capsys: pytest.CaptureFixture) -> None:
+async def test_lessons_flow_into_later_related_tasks(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
     runner, _ = make_runner(
         tmp_path,
-        "- [ ] Look up the weather in Hyderabad\n- [ ] Summarize the Hyderabad weather forecast\n")
+        "- [ ] Look up the weather in Hyderabad\n- [ ] Summarize the Hyderabad weather forecast\n",
+    )
     fake_sdk.agent.push(*agent_done())
     fake_sdk.verifier.push(*verdict_pass())
     fake_sdk.memo.push(*memo("- wttr.in/Hyderabad?format=3 returns a one-line forecast"))
@@ -280,8 +299,9 @@ async def test_lessons_flow_into_later_related_tasks(tmp_path: Path, fake_sdk: S
     assert "lesson saved:" in out and "injecting lessons" in out
 
 
-async def test_memory_failure_never_fails_the_run(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                  no_sleep: list, capsys: pytest.CaptureFixture) -> None:
+async def test_memory_failure_never_fails_the_run(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
     runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n")
     fake_sdk.agent.push(*agent_done())
     fake_sdk.verifier.push(*verdict_pass())
@@ -294,9 +314,12 @@ async def test_memory_failure_never_fails_the_run(tmp_path: Path, fake_sdk: Simp
 # --- watch mode -------------------------------------------------------------
 
 
-async def test_watch_mode_picks_up_appended_task(tmp_path: Path, fake_sdk: SimpleNamespace,
-                                                 monkeypatch: pytest.MonkeyPatch,
-                                                 capsys: pytest.CaptureFixture) -> None:
+async def test_watch_mode_picks_up_appended_task(
+    tmp_path: Path,
+    fake_sdk: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
     import todo_engine.runner as runner_mod
 
     runner, todo = make_runner(tmp_path, "- [x] old\n", watch=True)

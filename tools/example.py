@@ -12,7 +12,7 @@ from claude_agent_sdk import tool
 @tool(
     name="example",
     description="Demo capability: returns the official TOKEN for a given text. "
-                "Use when a task asks for a text's token.",
+    "Use when a task asks for a text's token.",
     input_schema={"text": str},
 )
 async def example(args: dict) -> dict:

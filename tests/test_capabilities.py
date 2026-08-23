@@ -11,13 +11,13 @@ from todo_engine.capabilities import (
     scan,
 )
 
-GOOD_TOOL = '''
+GOOD_TOOL = """
 from claude_agent_sdk import tool
 
 @tool(name="good", description="a good tool", input_schema={"text": str})
 async def good(args: dict) -> dict:
     return {"content": [{"type": "text", "text": "ok"}]}
-'''
+"""
 
 
 def write(path: Path, text: str) -> None:
@@ -30,7 +30,9 @@ def write(path: Path, text: str) -> None:
 
 def test_parse_frontmatter() -> None:
     assert _parse_frontmatter("---\nName: 'x'\ndescription: \"d: e\"\n---\nbody") == {
-        "name": "x", "description": "d: e"}
+        "name": "x",
+        "description": "d: e",
+    }
     assert _parse_frontmatter("# no frontmatter") == {}
     assert _parse_frontmatter("---\nname: x\n(never closed)") == {}
     assert _parse_frontmatter("") == {}
@@ -44,7 +46,9 @@ def test_skills_scan(tmp_path: Path) -> None:
     write(tmp_path / "skills" / "bad" / "SKILL.md", "---\nname: bad\n---\n")
     caps = scan(tmp_path)
     assert [(n, d) for n, d, _ in caps.skills] == [("ok", "fine")]
-    assert len(caps.warnings) == 1 and "bad" in caps.warnings[0] and "frontmatter" in caps.warnings[0]
+    assert (
+        len(caps.warnings) == 1 and "bad" in caps.warnings[0] and "frontmatter" in caps.warnings[0]
+    )
     assert "- ok: fine" in caps.manifest
 
 
@@ -90,23 +94,36 @@ def test_expand_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_mcp_config_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GH_TOKEN", "tok")
     write(tmp_path / "tools" / "good.py", GOOD_TOOL)
-    write(tmp_path / "mcp_config.json", json.dumps({
-        "mcpServers": {
-            "//": "comment entry",
-            "github": {"command": "npx", "args": ["-y", "srv"], "env": {"T": "${GH_TOKEN}"}},
-            "remote": {"type": "http", "url": "https://example.com/mcp"},
-            "local": {"command": "collides-with-tools-server"},
-        }
-    }))
+    write(
+        tmp_path / "mcp_config.json",
+        json.dumps(
+            {
+                "mcpServers": {
+                    "//": "comment entry",
+                    "github": {
+                        "command": "npx",
+                        "args": ["-y", "srv"],
+                        "env": {"T": "${GH_TOKEN}"},
+                    },
+                    "remote": {"type": "http", "url": "https://example.com/mcp"},
+                    "local": {"command": "collides-with-tools-server"},
+                }
+            }
+        ),
+    )
     caps = scan(tmp_path)
     assert caps.servers == [("github", "npx"), ("remote", "https://example.com/mcp")]
     assert caps.mcp_servers["github"]["env"] == {"T": "tok"}
     assert "mcp__github__*" in caps.allowed_tools and "mcp__remote__*" in caps.allowed_tools
     assert any("'local' collides" in w for w in caps.warnings)
-    assert "- github (npx)" in caps.manifest and "- remote (https://example.com/mcp)" in caps.manifest
+    assert (
+        "- github (npx)" in caps.manifest and "- remote (https://example.com/mcp)" in caps.manifest
+    )
 
 
-@pytest.mark.parametrize("content", ["{not json", json.dumps({"servers": {}}), json.dumps({"mcpServers": []})])
+@pytest.mark.parametrize(
+    "content", ["{not json", json.dumps({"servers": {}}), json.dumps({"mcpServers": []})]
+)
 def test_mcp_config_malformed(tmp_path: Path, content: str) -> None:
     write(tmp_path / "mcp_config.json", content)
     caps = scan(tmp_path)
@@ -118,10 +135,15 @@ def test_mcp_config_malformed(tmp_path: Path, content: str) -> None:
 
 
 def test_inherited_connectors(isolated_home: Path) -> None:
-    (isolated_home / ".claude.json").write_text(json.dumps({
-        "mcpServers": {"foo-bar": {}},
-        "claudeAiMcpEverConnected": ["claude.ai Gmail", "foo-bar"],
-    }), encoding="utf-8")
+    (isolated_home / ".claude.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {"foo-bar": {}},
+                "claudeAiMcpEverConnected": ["claude.ai Gmail", "foo-bar"],
+            }
+        ),
+        encoding="utf-8",
+    )
     caps = Capabilities()
     _scan_inherited_connectors(caps)
     assert caps.inherited == ["foo-bar", "claude.ai Gmail"]
@@ -136,7 +158,9 @@ def test_inherited_connectors_unreadable(isolated_home: Path) -> None:
 
 
 def test_inherited_appear_in_manifest(tmp_path: Path, isolated_home: Path) -> None:
-    (isolated_home / ".claude.json").write_text(json.dumps({"mcpServers": {"gh": {}}}), encoding="utf-8")
+    (isolated_home / ".claude.json").write_text(
+        json.dumps({"mcpServers": {"gh": {}}}), encoding="utf-8"
+    )
     caps = scan(tmp_path)
     assert "Inherited Claude Code connectors" in caps.manifest and "- gh" in caps.manifest
 

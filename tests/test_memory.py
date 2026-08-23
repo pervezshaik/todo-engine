@@ -18,7 +18,9 @@ async def test_distill_nothing_writes_no_memo(tmp_path: Path, fake_sdk: SimpleNa
     assert not (tmp_path / "memory").exists()
 
 
-async def test_distill_engine_error_writes_no_memo(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
+async def test_distill_engine_error_writes_no_memo(
+    tmp_path: Path, fake_sdk: SimpleNamespace
+) -> None:
     fake_sdk.memo.push(*engine_error("overloaded"))
     assert await distill(TASK, "done", "", tmp_path) is None
 

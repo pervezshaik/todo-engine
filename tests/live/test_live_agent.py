@@ -15,9 +15,17 @@ pytestmark = pytest.mark.live
 
 
 async def test_single_task_end_to_end(tmp_path: Path) -> None:
-    task = Task(line_no=0, number=1, done=False,
-                text="Create a file named proof.txt containing the single line: agent was here")
-    result = await run_task(task, TaskContext(workdir=tmp_path, on_event=lambda s: print(f"  | {s[:120]}")))
-    print(f"status: {result.status_line}  cost: {result.cost_usd}  duration: {result.duration_s:.1f}s")
+    task = Task(
+        line_no=0,
+        number=1,
+        done=False,
+        text="Create a file named proof.txt containing the single line: agent was here",
+    )
+    result = await run_task(
+        task, TaskContext(workdir=tmp_path, on_event=lambda s: print(f"  | {s[:120]}"))
+    )
+    print(
+        f"status: {result.status_line}  cost: {result.cost_usd}  duration: {result.duration_s:.1f}s"
+    )
     assert result.success, result.status_line
     assert (tmp_path / "proof.txt").read_text(encoding="utf-8").strip() == "agent was here"

@@ -21,8 +21,10 @@ from claude_agent_sdk import (
 
 async def main() -> int:
     if os.environ.get("ANTHROPIC_API_KEY"):
-        print("NOTE: ANTHROPIC_API_KEY is set — unsetting for this check "
-              "so we prove the subscription-login path.")
+        print(
+            "NOTE: ANTHROPIC_API_KEY is set — unsetting for this check "
+            "so we prove the subscription-login path."
+        )
         del os.environ["ANTHROPIC_API_KEY"]
 
     installed_cli = shutil.which("claude")
@@ -33,8 +35,10 @@ async def main() -> int:
     ]
     if installed_cli:
         attempts.append(
-            ("installed claude binary (cli_path)",
-             ClaudeAgentOptions(max_turns=1, cli_path=installed_cli)),
+            (
+                "installed claude binary (cli_path)",
+                ClaudeAgentOptions(max_turns=1, cli_path=installed_cli),
+            ),
         )
 
     for label, options in attempts:

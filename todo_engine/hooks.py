@@ -6,11 +6,16 @@ from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import HookMatcher
+from claude_agent_sdk.types import HookEvent
 
 SHELL_TOOLS = ("Bash", "PowerShell")
 
+DENY_REASON = (
+    "The user declined this command. Try a different, safer approach or finish with STATUS: failed."
+)
 
-def make_shell_hooks(log_file: Path, confirm: bool) -> dict[str, list[Any]]:
+
+def make_shell_hooks(log_file: Path, confirm: bool) -> dict[HookEvent, list[HookMatcher]]:
     """Hooks dict for ClaudeAgentOptions.
 
     Every shell command is appended to ``log_file`` *before* it executes.
@@ -32,13 +37,9 @@ def make_shell_hooks(log_file: Path, confirm: bool) -> dict[str, list[Any]]:
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
                         "permissionDecision": "deny",
-                        "permissionDecisionReason":
-                            "The user declined this command. Try a different, "
-                            "safer approach or finish with STATUS: failed.",
+                        "permissionDecisionReason": DENY_REASON,
                     }
                 }
         return {}
 
-    return {
-        "PreToolUse": [HookMatcher(matcher=tool, hooks=[shell_hook]) for tool in SHELL_TOOLS]
-    }
+    return {"PreToolUse": [HookMatcher(matcher=tool, hooks=[shell_hook]) for tool in SHELL_TOOLS]}

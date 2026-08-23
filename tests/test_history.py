@@ -8,9 +8,19 @@ import todo_engine.history as history
 from todo_engine.history import load_history, print_report, record_attempt
 
 
-def row(task: str, success: bool, outcome: str = "done", cost: float = 0.1, **extra: object) -> dict:
-    return {"task_number": 1, "task_text": task, "attempt": 1, "outcome": outcome,
-            "success": success, "duration_s": 10.0, "cost_usd": cost, **extra}
+def row(
+    task: str, success: bool, outcome: str = "done", cost: float = 0.1, **extra: object
+) -> dict:
+    return {
+        "task_number": 1,
+        "task_text": task,
+        "attempt": 1,
+        "outcome": outcome,
+        "success": success,
+        "duration_s": 10.0,
+        "cost_usd": cost,
+        **extra,
+    }
 
 
 def test_record_and_load_round_trip(tmp_path: Path) -> None:
