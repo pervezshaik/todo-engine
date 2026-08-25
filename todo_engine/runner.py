@@ -61,7 +61,7 @@ class Runner:
     async def run_once(self) -> bool:
         """Process all pending tasks once. Returns True if anything ran."""
         tasks = parse(self.config.todo_file)
-        pending = [t for t in tasks if not t.done]
+        pending = [t for t in tasks if t.pending]
         if self.config.only_task is not None:
             pending = [t for t in pending if t.number == self.config.only_task]
             if not pending:
@@ -92,6 +92,10 @@ class Runner:
                 self.console.print(f"  [cyan]QUEUED[/cyan]  {t.number}. {t.text}{note}")
             elif t.done:
                 self.console.print(f"  [dim]DONE    {t.number}. {t.text} (skipped)[/dim]")
+            elif t.blocked:
+                self.console.print(f"  [yellow]HELD    {t.number}. {t.text} ([!] blocked)[/yellow]")
+            elif t.waiting:
+                self.console.print(f"  [dim]HELD    {t.number}. {t.text} ([>] waiting)[/dim]")
             else:
                 self.console.print(
                     f"  [dim]HELD    {t.number}. {t.text} (not selected by --task)[/dim]"
