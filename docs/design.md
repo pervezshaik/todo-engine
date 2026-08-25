@@ -176,7 +176,7 @@ ClaudeAgentOptions(
 
 **Acceptance for the phase:** (1) `pipx install todo-engine` on a clean machine → `todo-engine init` → `todo-engine doctor` → `todo-engine run todo.md` completes the sample file; (2) CI green on three OSes; (3) coverage ≥85 %, `ruff`/`mypy --strict` clean; (4) the v2 acceptance run (§7) passes unchanged through the alias; (5) README + docs site let a stranger succeed without asking.
 
-*Note:* `evolution.md` §8 provisionally numbers its platform steps 15–33; those will be rebased after this phase when that plan is picked up.
+*Note:* the platform roadmap in `evolution.md` §8 continues this numbering at **26** (rebased 2026-08-24; its old 15–33 numbers are shown there for reference). Steps 26, 27 and 31 landed on 2026-08-24; they also delivered parts of steps 22 (verifier fails closed, OS-aware prompt) and the `task_id` history join.
 
 ## 7. Verification plan (acceptance run)
 

@@ -156,7 +156,7 @@ confluence: ATLAS
 
 ### 4.3 Directive grammar generalization
 
-Today `parser._DIRECTIVE_KEYS` is a closed tuple (`use`, `retries`, `verify`). Open it to any `@key:` and standardize:
+The grammar is open since step 26 (any `@key: value`; flags `@plan`/`@solo`; a bare `@name` stays in the text as a mention). Standard keys:
 
 | Directive | Meaning | Consumed by |
 |---|---|---|
@@ -273,52 +273,74 @@ Write-tool patterns (which `mcp__*` tools count as outward) live in `agents.md` 
 
 ## 8. Phased roadmap
 
-Continues `design.md` §6 numbering. All statuses `planned`. Each phase ends with what it unlocks.
+Continues `design.md` §6 numbering, which ends at 25 — so this roadmap starts at **26** (rebased 2026-08-24; the original draft numbers are in the *was* column). `design.md` steps 19–25 (release, CLI subcommands, config file, robustness, observability, security, docs) are interleaved where they are natural by-products rather than done first. Each phase ends with what it unlocks.
 
-### v3 — Multi-project & scheduling
+### Phase A — Groundwork (v3.0)
 
-| Step | Deliverable | Verified by | Status |
-|---|---|---|---|
-| 15 | Open directive grammar (`_DIRECTIVE_KEYS` → any key) + `[!]`/`[>]` markers + `parse_tables()` | `scripts/parser_test.py` covers new keys, markers, a RAID table round-trip | planned |
-| 16 | Workspace layout + `new-program` scaffold + history fields `program/project/agent`; registries resolved by walking up to the workspace root | today's CLI runs a `programs/<p>/projects/<q>/todo.md` unchanged; `--report` groups by program | planned |
-| 17 | `serve`: scheduler tick — multi-file watch, `@cadence` parsing, `@depends` ordering | a cadence line fires on time; a dependent line waits for its `@id` | planned |
-| 18 | Program lanes + `--parallel N` | two programs run concurrently, each sequential inside; transcripts untangled | planned |
-| 19 | `gates.py` + `inbox.md` approval loop on Gmail send | send intercepted → inbox line → box checked → mail sent → history row carries `approval_ref` | planned |
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 26 | 15 | Open directive grammar (any `@key: value`, flags `@plan`/`@solo`, bare `@mentions` stay in text) + `[!]`/`[>]` markers + `Task.indent/parent/children/id` + `insert_lines()`/`find_line()` + `parse_tables()` | `tests/test_parser.py` covers new keys, markers, nesting, insert shifting, a RAID table | ✅ Done (2026-08-24) |
+| 27 | 20 | `RoleSpec`/`RoleContext`/`run_role()` — one shared SDK loop in `roles/base.py`; Executor, Verifier, Memo re-expressed as roles (`agent.py`/`verifier.py`/`memory.py` are shims); verifier **fails closed** → `[!]` (outcome `blocked`); memo cost counted; OS-aware prompt; `@model:` honoured; history rows carry `task_id` + `model` | all v2 tests pass; engine-error verdict yields `[!]` not `[x]`; `tests/test_roles.py` | ✅ Done (2026-08-24) |
+| 28 | design 20 | CLI subcommands `run` (default) · `report` · `doctor` · `init`; exit codes 0/1/2/3 | help snapshot tests; `todo-engine todo.md` ≡ `run` | planned |
+| 29 | design 21 | `todo-engine.toml` + `TODO_ENGINE_*` env; precedence CLI > env > file > default; models/tier ladder/parallel/budget live here | config round-trip tests | planned |
+| 30 | 16 | Workspace layout + `new-program` scaffold + history fields `program/project/agent`; registries resolved by walking up to the workspace root; `--report` groups on `task_id` | today's CLI runs a `programs/<p>/projects/<q>/todo.md` unchanged; `--report` groups by program | planned |
+
+*Unlocks:* every later role is a `RoleSpec`; engine-written lines have identity.
+
+### Phase B — Smart executor (v3.5)
+
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 31 | idea | `@depends:`/`@after:` + `@id:` DAG (`graph.py`): waves, cycle detection, children before parent; unknown id / cycle / dependency on `[!]`/`[>]` → held as `[!]` with reason; dependents of a failed task are skipped | `tests/test_graph.py`; runner tests for order, skip, block | ✅ Done (2026-08-24) |
+| 32 | 18 (part) | Scheduler core: ready tasks run concurrently under `--parallel N` (default 1 here); per-task labelled console stream; summaries keyed by `task_id`; `no_sleep` fixture retargeted | two independent tasks overlap under `--parallel 2`; transcripts untangled | planned |
+| 33 | — | Triage role (Haiku, read-only, JSON-schema `output_format`): complexity / model / effort / budget / decompose; `@model` `@effort` `@budget` overrides; `--no-triage` exact-old-behaviour guard | triage parsing + fallback tests; `--no-triage` byte-identical run | planned |
+| 34 | — | Tier-escalating retry (ladder from config, default Haiku 4.5 → Sonnet 5 → Opus 5; Fable only via `@model:`) + `max_budget_usd` per task + `--budget` per run + model column in summary/report | ladder test; budget stops the run | planned |
+| 35 | — | Visible decomposition: triage writes indented children with `@id/@after/@model` via `insert_lines`; parent `[~]` → `[x]` after children + integration pass; depth 1 | decomposed file is human-editable; crash mid-way resumes | planned |
+| 36 | — | Intra-task fan-out: `agents={}` `AgentDefinition` roster for complex tasks; `SubagentStart/Stop` hooks logged to the transcript | subagent lines appear in `task-N.md` | planned |
+
+*Unlocks:* cheaper runs by default, parallelism, big tasks broken down in the file.
+
+### Phase C — First outward loop (v3.9)
+
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 37 | 17 | `serve`: scheduler tick — multi-file watch, `@cadence` parsing, heartbeat file; Task Scheduler recipe | a cadence line fires on time | planned |
+| 38 | 18 | Program lanes + `--parallel N` default 2 | two programs run concurrently, each sequential inside | planned |
+| 39 | 19 | `gates.py` + `inbox.md` approval loop on Gmail send | send intercepted → inbox line → box checked → mail sent → history row carries `approval_ref` | planned |
 
 *Unlocks:* many projects, timed work, the first safe outward action.
 
-### v4 — Program agents
+### Phase D — Program agents (v4)
 
-| Step | Deliverable | Verified by | Status |
-|---|---|---|---|
-| 20 | `RoleSpec`/`RoleContext` refactor; Executor + Verifier moved under `roles/`; verifier fails closed | all v2 tests pass; engine-error verdict yields `[!]` not `[x]` | planned |
-| 21 | Monitor (Jira via `acli`, GitHub, Calendar) → `followups.md` with `@source`, dedupe | a slipped ticket appears once, not twice, across two ticks | planned |
-| 22 | Chaser with `people.md` policy, `[>]`, chase log | drafted nudge reaches inbox; second nudge same day is suppressed | planned |
-| 23 | RAID Scribe | `raid.md` rows updated with "last reviewed"; no human row rewritten | planned |
-| 24 | Status Reporter + citation verifier, `weekly-report` skill | weekly draft in Gmail Drafts; an uncited sentence is rejected in the transcript | planned |
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 40 | 21 | Monitor (Jira via `acli` read-only, GitHub, Calendar) → `followups.md` with `@source`, dedupe | a slipped ticket appears once, not twice, across two ticks | planned |
+| 41 | 22 | Chaser with `people.md` policy, `[>]`, chase log | drafted nudge reaches inbox; second nudge same day is suppressed | planned |
+| 42 | 23 | RAID Scribe | `raid.md` rows updated with "last reviewed"; no human row rewritten | planned |
+| 43 | 24 | Status Reporter + citation verifier, `weekly-report` skill | weekly draft in Gmail Drafts; an uncited sentence is rejected in the transcript | planned |
 
 *Unlocks:* a program that watches, chases and reports itself with the human approving.
 
-### v5 — Coordination & dashboard
+### Phase E — Coordination & dashboard (v5)
 
-| Step | Deliverable | Verified by | Status |
-|---|---|---|---|
-| 25 | Coordinator (notes → actions / decisions / `@depends`) | pasted notes produce correct lines; ambiguous ones marked `[!]` | planned |
-| 26 | Meeting Prep + Inbox Triage | prep note 30 min before an event; triage creates follow-ups from a real thread | planned |
-| 27 | `index.sqlite` + `portfolio.md` + notifications | portfolio regenerated on schedule; index deleted → rebuilt identical | planned |
-| 28 | `serve --ui` read-only local page | renders portfolio, inbox, history per program | planned |
-| 29 | Slack + Confluence integrations | nudge via Slack (L2); status page published with diff shown in inbox | planned |
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 44 | 25 | Coordinator (notes → actions / decisions / `@depends`) | pasted notes produce correct lines; ambiguous ones marked `[!]` | planned |
+| 45 | 26 | Meeting Prep + Inbox Triage | prep note 30 min before an event; triage creates follow-ups from a real thread | planned |
+| 46 | 27 | `index.sqlite` + `portfolio.md` + notifications | portfolio regenerated on schedule; index deleted → rebuilt identical | planned |
+| 47 | 28 | `serve --ui` read-only local page | renders portfolio, inbox, history per program | planned |
+| 48 | 29 | Slack + Confluence integrations | nudge via Slack (L2); status page published with diff shown in inbox | planned |
 
 *Unlocks:* the full day-in-the-life of §2.1.
 
-### v6 — Portfolio & intelligence
+### Phase F — Portfolio & intelligence (v6)
 
-| Step | Deliverable | Verified by | Status |
-|---|---|---|---|
-| 30 | Risk Radar (evidence-gated proposals) | proposal cites ≥2 sources; goes to inbox not `raid.md` | planned |
-| 31 | Portfolio role (cross-program health, people-load heatmap) | `portfolio.md` flags a person with >N open follow-ups | planned |
-| 32 | Memory Curator + autonomy promotion by track record | promotion proposal after N clean approvals; contradicted memos merged | planned |
-| 33 | Retro / analytics (cost, latency, success per role and program) | `report` shows per-role and per-program breakdowns over history | planned |
+| Step | was | Deliverable | Verified by | Status |
+|---|---|---|---|---|
+| 49 | 30 | Risk Radar (evidence-gated proposals) | proposal cites ≥2 sources; goes to inbox not `raid.md` | planned |
+| 50 | 31 | Portfolio role (cross-program health, people-load heatmap) | `portfolio.md` flags a person with >N open follow-ups | planned |
+| 51 | 32 | Memory Curator + autonomy promotion by track record | promotion proposal after N clean approvals; contradicted memos merged | planned |
+| 52 | 33 | Retro / analytics (cost, latency, success per role and program) | `report` shows per-role and per-program breakdowns over history | planned |
 
 *Unlocks:* the system improves itself and the owner manages a portfolio, not tasks.
 
@@ -418,13 +440,27 @@ Value H/M/L · Effort S/M/L. Not commitments — a ranked pool to pull from.
 
 | Question | Current recommendation |
 |---|---|
-| Jira via `acli` or Atlassian MCP? | `acli` first (already installed, CLI-friendly for Monitor); MCP when write gating needs tool-name matching |
+| Jira via `acli` or Atlassian MCP? | **Rule (2026-08-24):** reads via `acli` (L0, Monitor); every *write* to Jira goes through an MCP tool, because `gates.py` matches on tool name and a Bash-wrapped `acli` call would bypass the gate |
 | Slack auth path | Bot token in env, `${SLACK_BOT_TOKEN}` via `_expand_env`; self-DM first, channels later |
 | Workspace location: git, Drive, Obsidian vault? | git repo + optional Drive sync of `programs/`; `runs/` git-ignored |
 | Daemon (`serve`) vs scheduled one-shots? | `serve` for watch/inbox latency; one-shot `run --tick` as a fallback for Task Scheduler |
 | Global vs per-program inbox | Global `inbox.md` with `@program:`; one place to check in the morning |
 | Model policy per role | Haiku for read-mostly roles, default for Executor/Coordinator/Reporter; overridable in `agents.md` |
 | Real YAML for frontmatter? | Keep `_parse_frontmatter` (flat key: value) until a nested need appears |
+
+### 10.2a Review findings folded into the plan (2026-08-24)
+
+| # | Finding | Where it landed |
+|---|---|---|
+| G1 | Step numbers collided with `design.md` 15–25 | §8 rebased to 26–52 |
+| G2 | "Every primitive exists" was optimistic: directive grammar was closed, no `[!]`/`[>]`, verifier failed open | Steps 26, 27 (done) |
+| G3 | No line-insert primitive; `Task.line_no` is an absolute offset that shifts when lines are inserted | `insert_lines()` + `find_line()` by `@id` (step 26); callers re-resolve after any insert |
+| G4 | Three duplicated SDK loops with three cost conventions; memo cost discarded | `roles/base.run_role()` (step 27) — prerequisite, not a v4 item |
+| G5 | Parallel lanes collide with shared singletons (`completed_summaries`, unlabelled console stream, `task.number` file names) and the `no_sleep` test fixture replaces the whole `asyncio` module | Step 32 |
+| G6 | `--report` joins on `task_text` | Rows now carry `task_id` (step 27); report grouping switches in step 30 |
+| G7 | The "smart executor" (triage, tiers, decomposition, subagents) had no home here | Phase B |
+| G8 | Executor prompt hardcoded "Windows 11" | `platform.system()` (step 27) |
+| G9 | Gating is by tool name, so `acli` writes would bypass it | Rule in §10.2 |
 
 ### 10.3 Non-goals
 
@@ -433,5 +469,5 @@ Multi-user / team server · replacing Jira or Confluence · mobile app · genera
 ## 11. Next 3 concrete steps
 
 1. **This document** + pointers from `README.md` and `docs/design.md` §6. ✅ Done (2026-08-23)
-2. **Groundwork (steps 15–16):** open the directive grammar and add `[!]`/`[>]` in `todo_engine/parser.py`; add `program/project/agent` to `history.record_attempt` rows; scaffold one real program under `programs/<name>/` and run today's engine on its `projects/<q>/todo.md` unchanged.
-3. **First outward loop end-to-end on one real program, draft-only (step 19):** Chaser → `inbox.md` → `gates.py` denies the Gmail send and queues it → box check sends → history links the approval. This exercises the riskiest assumptions (gating by tool name, inbox-as-approval, human-in-the-loop latency) before any other role is built.
+2. **Groundwork (steps 26, 27, 31):** open directive grammar, `[!]`/`[>]`, nesting, `insert_lines`; role abstraction with the verifier failing closed; `@depends` DAG. ✅ Done (2026-08-24)
+3. **Next: steps 28 → 29 → 30** (CLI subcommands, config file, workspace layout) so the smart-executor knobs (Phase B) have a config home, then **Phase B** (32–36). The first outward loop (step 39) follows; it exercises the riskiest assumptions (gating by tool name, inbox-as-approval, human-in-the-loop latency) before any other role is built.

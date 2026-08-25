@@ -28,11 +28,23 @@ transcripts in `runs/<timestamp>/`.
 **Watch progress live in the file itself:** the task being worked on shows as
 `- [~]` (flips to `- [x]` on success, back to `- [ ]` on failure), and every
 pass starts with a "Picked up this pass" queue in the console showing what's
-queued vs skipped.
+queued vs skipped. Two more markers are yours to set: `- [!]` (blocked — the
+engine holds the line until you decide) and `- [>]` (waiting on someone else).
+The engine itself writes `[!]` when a task cannot be accepted or scheduled.
+
+**Order and structure:** give a line an identity with `@id: build` and make
+another wait for it with `@depends: build` (or `@after:`). Indented checklist
+lines are steps of the line above them — they run first, then the parent runs
+as the integration step. Any `@key: value` directive is accepted; the engine
+consumes `@use:`, `@retries:`, `@verify:`, `@id:`, `@depends:`/`@after:` and
+`@model:` today, and leaves the rest (`@owner:`, `@due:`, `@source:`, …) for
+you and future roles.
 
 **Trust, but verify:** a box is only checked after an independent verifier
 agent (cheap model, read-only tools) inspects the actual artifacts against the
-task text — self-reported success is not enough. Failures get a smart retry:
+task text — self-reported success is not enough. If the verifier itself cannot
+run, the task is *not* accepted: the line becomes `- [!]` for you to judge.
+Failures get a smart retry:
 transient errors back off and retry silently; real failures get one retry with
 a "what went wrong" analysis (`@retries: N` to change). After each verified
 success a ≤8-line lesson is distilled into `memory/` and injected into future
