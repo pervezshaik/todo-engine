@@ -52,13 +52,15 @@ async def test_success_checks_box_and_records_everything(
     assert "- [x] Write hello.txt" in todo.read_text(encoding="utf-8")
     _, res = runner.results[0]
     assert res.success and res.outcome is TaskOutcome.DONE
-    assert res.cost_usd == pytest.approx(0.01 + 0.001)  # executor + verifier
+    assert res.cost_usd == pytest.approx(0.01 + 0.001 + 0.0005)  # executor + verifier + memo
     assert runner.completed_summaries == ["Write hello.txt — STATUS: done"]
 
     rows = load_history(tmp_path)
     assert len(rows) == 1
     assert rows[0]["success"] is True and rows[0]["attempt"] == 1
     assert rows[0]["verifier"] == "VERDICT: pass" and rows[0]["outcome"] == "done"
+    assert rows[0]["cost_usd"] == pytest.approx(0.0115)  # memo cost is in the row too
+    assert rows[0]["task_id"] == runner.results[0][0].id and rows[0]["model"] is None
 
     logs = list((tmp_path / "runs").glob("*/task-1.md"))
     assert len(logs) == 1 and "Verifier: VERDICT: pass" in logs[0].read_text(encoding="utf-8")
@@ -129,6 +131,55 @@ async def test_verifier_rejection_reverts_box(
     row = load_history(tmp_path)[0]
     assert row["success"] is False and row["verifier"] == "VERDICT: fail — hello.txt is missing"
     assert fake_sdk.memo.calls == []  # no lesson from a rejected task
+
+
+async def test_verifier_engine_error_blocks_the_line(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
+    runner, todo = make_runner(tmp_path, "- [ ] Write hello.txt\n- [ ] second\n")
+    fake_sdk.agent.push(*agent_done())
+    fake_sdk.verifier.push(*engine_error("overloaded"))
+    happy_path(fake_sdk)
+    assert await runner.run() == 1
+    assert len(fake_sdk.agent.calls) == 2  # no automatic retry of the first task
+    # fail closed: never [x] without a verdict; a human decides
+    assert todo.read_text(encoding="utf-8") == "- [!] Write hello.txt\n- [x] second\n"
+    first = runner.results[0][1]
+    assert first.outcome is TaskOutcome.BLOCKED and not first.success
+    assert first.status_line.startswith("STATUS: blocked — VERDICT: fail — verifier unavailable")
+    assert load_history(tmp_path)[0]["outcome"] == "blocked"
+    assert fake_sdk.memo.calls == [] or len(fake_sdk.memo.calls) == 1  # none for the blocked one
+    out = capsys.readouterr().out
+    assert "[BLOCKED]" in out
+    # the [!] line is held on the next pass, not rerun
+    runner2, _ = make_runner(tmp_path, todo.read_text(encoding="utf-8"))
+    assert await runner2.run_once() is False
+
+
+async def test_blocked_and_waiting_lines_are_held(
+    tmp_path: Path, fake_sdk: SimpleNamespace, capsys: pytest.CaptureFixture
+) -> None:
+    runner, todo = make_runner(tmp_path, "- [!] needs a decision\n- [>] waiting on sam\n")
+    assert await runner.run_once() is False
+    assert fake_sdk.agent.calls == []
+    assert todo.read_text(encoding="utf-8") == "- [!] needs a decision\n- [>] waiting on sam\n"
+    runner2, _ = make_runner(tmp_path, "- [!] needs a decision\n- [>] waiting\n- [ ] go\n")
+    happy_path(fake_sdk)
+    await runner2.run()
+    out = capsys.readouterr().out
+    assert "HELD    1. needs a decision ([!] blocked)" in out
+    assert "HELD    2. waiting ([>] waiting)" in out
+
+
+async def test_model_directive_reaches_the_executor(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
+    runner, _ = make_runner(tmp_path, "- [ ] hard one @model: opus\n")
+    happy_path(fake_sdk)
+    await runner.run()
+    assert fake_sdk.agent.options[0].model == "opus"
+    assert runner.results[0][1].model == "opus"
+    assert load_history(tmp_path)[0]["model"] == "opus"
 
 
 async def test_verify_off_directive_skips_verifier(

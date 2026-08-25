@@ -33,9 +33,9 @@ def plain_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def fake_sdk(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """Replace the SDK ``query`` in every module that calls it."""
-    import todo_engine.agent as agent_mod
-    import todo_engine.memory as memory_mod
-    import todo_engine.verifier as verifier_mod
+    import todo_engine.roles.executor as agent_mod
+    import todo_engine.roles.memo as memory_mod
+    import todo_engine.roles.verifier as verifier_mod
 
     sdk = SimpleNamespace(
         agent=FakeQuery("agent"),

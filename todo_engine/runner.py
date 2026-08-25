@@ -10,13 +10,13 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from .agent import TaskContext, TaskOutcome, TaskResult, is_transient, run_task
 from .capabilities import Capabilities, scan
 from .history import record_attempt
 from .hooks import make_shell_hooks
 from .memory import distill, relevant_memos
-from .parser import Task, mark_done, mark_in_progress, mark_pending, parse
-from .verifier import verify
+from .parser import Task, mark_blocked, mark_done, mark_in_progress, mark_pending, parse
+from .roles.executor import TaskContext, TaskOutcome, TaskResult, is_transient, run_task
+from .roles.verifier import verify
 
 TRANSIENT_RETRIES = 2
 TRANSIENT_DELAYS_S = (5, 15)
@@ -101,6 +101,25 @@ class Runner:
                     f"  [dim]HELD    {t.number}. {t.text} (not selected by --task)[/dim]"
                 )
 
+    def _record(self, task: Task, attempt: int, result: TaskResult, verifier: str | None) -> None:
+        record_attempt(
+            self.config.project_root,
+            {
+                "task_id": task.id,
+                "task_number": task.number,
+                "task_text": task.text,
+                "attempt": attempt,
+                "outcome": result.outcome.value,
+                "success": result.success,
+                "duration_s": round(result.duration_s, 1),
+                "cost_usd": result.cost_usd,
+                "model": result.model,
+                "verifier": verifier,
+                "status_line": result.status_line[:300],
+                "run_dir": str(self.run_dir),
+            },
+        )
+
     async def _run_one(self, task: Task) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
         log_path = self.run_dir / f"task-{task.number}.md"
@@ -141,6 +160,7 @@ class Runner:
                 lessons=lessons,
                 failure_memo=failure_memo,
                 on_event=lambda line: self.console.print(f"[dim]| {line}[/dim]"),
+                model=task.directives.get("model") or None,
             )
 
             try:
@@ -170,29 +190,20 @@ class Runner:
                 if verdict.cost_usd:
                     result.cost_usd = (result.cost_usd or 0.0) + verdict.cost_usd
                 result.transcript += ["", f"Verifier: {verdict.reason}"]
-                if not verdict.passed:
+                if verdict.engine_error:
+                    # fail closed: nothing was judged, so nothing is accepted —
+                    # a human decides ([!]); no automatic retry
+                    result.success = False
+                    result.outcome = TaskOutcome.BLOCKED
+                    result.status_line = f"STATUS: blocked — {verdict.reason}"
+                elif not verdict.passed:
                     result.success = False
                     result.outcome = TaskOutcome.FAILED
                     result.status_line = f"STATUS: failed — verification: {verdict.reason}"
 
-            record_attempt(
-                self.config.project_root,
-                {
-                    "task_number": task.number,
-                    "task_text": task.text,
-                    "attempt": attempt,
-                    "outcome": result.outcome.value,
-                    "success": result.success,
-                    "duration_s": round(result.duration_s, 1),
-                    "cost_usd": result.cost_usd,
-                    "verifier": verdict_reason,
-                    "status_line": result.status_line[:300],
-                    "run_dir": str(self.run_dir),
-                },
-            )
-
             if result.success:
                 break
+            self._record(task, attempt, result, verdict_reason)
 
             # retry policy by outcome
             if (
@@ -222,30 +233,34 @@ class Runner:
                     f"(retry {reflexion_used}/{max_reflexion})[/yellow]"
                 )
                 continue
-            break  # missing_capability / declined / retries exhausted
-
-        log_path.write_text("\n".join(result.transcript) + "\n", encoding="utf-8")
-        self.results.append((task, result))
+            break  # missing_capability / declined / blocked / retries exhausted
 
         if result.success:
             mark_done(self.config.todo_file, task.line_no)
             self.completed_summaries.append(f"{task.text} — {result.status_line}")
             self.console.print(f"[green][OK][/green] {result.status_line}")
-            # distill a reusable lesson for future runs
+            # distill a reusable lesson for future runs; its cost belongs to the task
             tool_trail = "\n".join(line for line in result.transcript if line.startswith("> "))[
                 -1200:
             ]
             try:
-                memo_path = await distill(
-                    task, result.final_text, tool_trail, self.config.project_root
-                )
-                if memo_path:
-                    self.console.print(f"[dim]lesson saved: {memo_path.name}[/dim]")
+                memo = await distill(task, result.final_text, tool_trail, self.config.project_root)
+                if memo.cost_usd:
+                    result.cost_usd = (result.cost_usd or 0.0) + memo.cost_usd
+                if memo.path:
+                    self.console.print(f"[dim]lesson saved: {memo.path.name}[/dim]")
             except Exception as exc:  # noqa: BLE001 - memory must never fail the run
                 self.console.print(f"[dim]lesson distillation skipped: {exc}[/dim]")
+            self._record(task, attempt, result, verdict_reason)
+        elif result.outcome is TaskOutcome.BLOCKED:
+            mark_blocked(self.config.todo_file, task.line_no)
+            self.console.print(f"[red][BLOCKED][/red] {result.status_line}")
         else:
             mark_pending(self.config.todo_file, task.line_no)  # revert the [~] marker
             self.console.print(f"[red][FAILED][/red] ({result.outcome.value}) {result.status_line}")
+
+        log_path.write_text("\n".join(result.transcript) + "\n", encoding="utf-8")
+        self.results.append((task, result))
         self.console.print(f"[dim]log: {log_path}[/dim]")
 
     def print_summary(self) -> None:

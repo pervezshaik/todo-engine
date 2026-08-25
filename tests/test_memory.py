@@ -14,7 +14,8 @@ def test_keywords_drop_stopwords_and_short_words() -> None:
 
 async def test_distill_nothing_writes_no_memo(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
     fake_sdk.memo.push(*memo_nothing())
-    assert await distill(TASK, "done", "> [tool] Write", tmp_path) is None
+    m = await distill(TASK, "done", "> [tool] Write", tmp_path)
+    assert m.path is None and m.cost_usd == 0.0005  # the call still cost something
     assert not (tmp_path / "memory").exists()
 
 
@@ -22,13 +23,15 @@ async def test_distill_engine_error_writes_no_memo(
     tmp_path: Path, fake_sdk: SimpleNamespace
 ) -> None:
     fake_sdk.memo.push(*engine_error("overloaded"))
-    assert await distill(TASK, "done", "", tmp_path) is None
+    assert (await distill(TASK, "done", "", tmp_path)).path is None
 
 
 async def test_distill_writes_memo_and_index(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
     fake_sdk.memo.push(*memo("- wttr.in/Hyderabad?format=3 gives a one-line forecast"))
-    path = await distill(TASK, "final report " * 200, "> [tool] WebFetch", tmp_path)
+    m = await distill(TASK, "final report " * 200, "> [tool] WebFetch", tmp_path)
+    path = m.path
     assert path is not None and path.parent == tmp_path / "memory" / "lessons"
+    assert m.cost_usd == 0.0005
     assert path.name.endswith("-task-3.md")
     content = path.read_text(encoding="utf-8")
     assert content.startswith(f"# {TASK.text}\n\n")

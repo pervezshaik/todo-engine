@@ -32,12 +32,17 @@ async def test_missing_verdict_line_fails(tmp_path: Path, fake_sdk: SimpleNamesp
     assert "no verdict line" in v.reason
 
 
-async def test_engine_error_currently_fails_open(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
-    # Documented soft spot (design.md step 22 will make this fail closed).
+async def test_engine_error_fails_closed(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
     fake_sdk.verifier.push(*engine_error("overloaded"))
     v = await verify(TASK, "claim", tmp_path)
-    assert v.passed is True
-    assert "accepted unverified" in v.reason
+    assert v.passed is False and v.engine_error is True
+    assert v.reason == "VERDICT: fail — verifier unavailable (engine error): overloaded"
+
+
+async def test_model_override(tmp_path: Path, fake_sdk: SimpleNamespace) -> None:
+    fake_sdk.verifier.push(*verdict_pass())
+    await verify(TASK, "claim", tmp_path, model="sonnet")
+    assert fake_sdk.verifier.options[0].model == "sonnet"
 
 
 async def test_verifier_is_read_only_cheap_and_prompted_with_task(
