@@ -114,6 +114,79 @@ async def test_in_progress_marker_is_visible_while_running(
     assert todo.read_text(encoding="utf-8") == "- [x] Write hello.txt\n"
 
 
+# --- dependencies -----------------------------------------------------------
+
+
+async def test_depends_orders_execution_and_skips_dependents_of_failures(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
+    runner, todo = make_runner(
+        tmp_path,
+        "- [ ] deploy @id: deploy @depends: test\n"
+        "- [ ] build @id: build\n"
+        "- [ ] test @id: test @after: build @retries: 0\n"
+        "- [ ] docs\n",
+    )
+    happy_path(fake_sdk)  # build
+    happy_path(fake_sdk)  # docs
+    fake_sdk.agent.push(*agent_failed("tests are red"))  # test fails → deploy skipped
+    assert await runner.run() == 1
+    assert [p.split("TASK: ")[1].split("\n")[0] for p in fake_sdk.agent.prompts] == [
+        "build",
+        "docs",
+        "test",
+    ]
+    assert todo.read_text(encoding="utf-8") == (
+        "- [ ] deploy @id: deploy @depends: test\n"
+        "- [x] build @id: build\n"
+        "- [ ] test @id: test @after: build @retries: 0\n"
+        "- [x] docs\n"
+    )
+    out = capsys.readouterr().out
+    assert "QUEUED  1. deploy (after test)" in out
+    assert "SKIPPED 1. deploy (dependency 'test' did not complete)" in out
+
+
+async def test_unsatisfiable_dependency_is_marked_blocked(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list, capsys: pytest.CaptureFixture
+) -> None:
+    runner, todo = make_runner(tmp_path, "- [ ] a @depends: nope\n- [ ] b\n")
+    happy_path(fake_sdk)
+    assert await runner.run() == 1
+    assert todo.read_text(encoding="utf-8") == "- [!] a @depends: nope\n- [x] b\n"
+    held, _ = runner.results[0]
+    assert held.text == "a" and runner.results[0][1].outcome is TaskOutcome.BLOCKED
+    row = load_history(tmp_path)[0]
+    assert row["outcome"] == "blocked" and "unknown dependency 'nope'" in row["status_line"]
+    out = capsys.readouterr().out
+    assert "HELD    1. a (unknown dependency 'nope')" in out and "[BLOCKED]" in out
+    logs = list((tmp_path / "runs").glob("*/task-1.md"))
+    assert logs == []  # nothing ran for it; the reason is in history + console
+
+
+async def test_children_run_before_parent(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
+    runner, todo = make_runner(tmp_path, "- [ ] parent\n  - [ ] child\n")
+    happy_path(fake_sdk)
+    happy_path(fake_sdk)
+    assert await runner.run() == 0
+    assert [p.split("TASK: ")[1].split("\n")[0] for p in fake_sdk.agent.prompts] == [
+        "child",
+        "parent",
+    ]
+    assert todo.read_text(encoding="utf-8") == "- [x] parent\n  - [x] child\n"
+
+
+async def test_only_task_ignores_dependencies(
+    tmp_path: Path, fake_sdk: SimpleNamespace, no_sleep: list
+) -> None:
+    runner, todo = make_runner(tmp_path, "- [ ] a @id: a\n- [ ] b @depends: a\n", only_task=2)
+    happy_path(fake_sdk)
+    assert await runner.run() == 0
+    assert todo.read_text(encoding="utf-8") == "- [ ] a @id: a\n- [x] b @depends: a\n"
+
+
 # --- verifier gate ----------------------------------------------------------
 
 

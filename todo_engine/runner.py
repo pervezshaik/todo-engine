@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .capabilities import Capabilities, scan
+from .graph import dependencies, plan
 from .history import record_attempt
 from .hooks import make_shell_hooks
 from .memory import distill, relevant_memos
@@ -71,25 +72,75 @@ class Runner:
                 return False
         if not pending:
             return False
-        self._print_queue(tasks, pending)
 
-        for task in pending:
-            await self._run_one(task)
-            if self.config.stop_on_failure and not self.results[-1][1].success:
-                self.console.print("[red]stopping: --stop-on-failure[/red]")
+        if self.config.only_task is not None:
+            waves, held = [pending], []  # an explicit --task N ignores dependencies
+        else:
+            ordered = plan(pending, tasks)
+            waves, held = ordered.waves, ordered.held
+        self._print_queue(tasks, [t for wave in waves for t in wave], dict(held))
+        for task, reason in held:
+            self._hold(task, reason)
+
+        failed_ids: set[str] = set()
+        stop = False
+        for wave in waves:
+            for task in wave:
+                unmet = [d for d in dependencies(task) if d in failed_ids]
+                if unmet:
+                    failed_ids.add(task.id)
+                    self.console.print(
+                        f"[yellow]SKIPPED[/yellow] {task.number}. {task.text} "
+                        f"(dependency {unmet[0]!r} did not complete)"
+                    )
+                    continue
+                await self._run_one(task)
+                if not self.results[-1][1].success:
+                    failed_ids.add(task.id)
+                    if self.config.stop_on_failure:
+                        self.console.print("[red]stopping: --stop-on-failure[/red]")
+                        stop = True
+                        break
+            if stop:
                 break
         return True
 
-    def _print_queue(self, tasks: list[Task], pending: list[Task]) -> None:
+    def _hold(self, task: Task, reason: str) -> None:
+        """A task that cannot be scheduled this pass: mark [!] and record why."""
+        mark_blocked(self.config.todo_file, task.line_no)
+        result = TaskResult(
+            success=False,
+            outcome=TaskOutcome.BLOCKED,
+            status_line=f"STATUS: blocked — {reason}",
+            final_text="",
+            cost_usd=None,
+            duration_s=0.0,
+            transcript=[f"# Task {task.number}: {task.text}", "", f"Held: {reason}"],
+        )
+        self._record(task, 0, result, None)
+        self.results.append((task, result))
+        self.console.print(f"[red][BLOCKED][/red] {task.number}. {task.text} — {reason}")
+
+    def _print_queue(
+        self, tasks: list[Task], pending: list[Task], held: dict[Task, str] | None = None
+    ) -> None:
         """Show what this pass picked up: queued vs done vs filtered out."""
         pending_numbers = {t.number for t in pending}
+        held_reasons = {t.number: r for t, r in (held or {}).items()}
         self.console.print("[bold]Picked up this pass:[/bold]")
         for t in tasks:
             if t.number in pending_numbers:
                 note = (
                     " [yellow](interrupted earlier — rerunning)[/yellow]" if t.in_progress else ""
                 )
+                deps = dependencies(t)
+                if deps:
+                    note += f" [dim](after {', '.join(deps)})[/dim]"
                 self.console.print(f"  [cyan]QUEUED[/cyan]  {t.number}. {t.text}{note}")
+            elif t.number in held_reasons:
+                self.console.print(
+                    f"  [yellow]HELD    {t.number}. {t.text} ({held_reasons[t.number]})[/yellow]"
+                )
             elif t.done:
                 self.console.print(f"  [dim]DONE    {t.number}. {t.text} (skipped)[/dim]")
             elif t.blocked:

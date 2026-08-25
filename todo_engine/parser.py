@@ -56,7 +56,7 @@ def auto_id(text: str) -> str:
     return "t-" + hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:8]
 
 
-@dataclass
+@dataclass(eq=True)
 class Task:
     line_no: int  # 0-based index into the file's lines
     text: str  # task text with any @directive suffixes stripped
@@ -96,6 +96,9 @@ class Task:
 
     def has_flag(self, name: str) -> bool:
         return name in self.directives
+
+    def __hash__(self) -> int:
+        return hash((self.line_no, self.text))
 
 
 def split_directives(body: str) -> tuple[str, dict[str, str]]:
